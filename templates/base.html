@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Daily FASR / RTO / NDR Dashboard</title>
+<title>Delivery Ops Dashboard</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 {{ table_css|safe }}
 </head>
@@ -144,7 +144,7 @@
 
   <div class="main">
     <button type="button" id="sidebarToggle" class="sidebar-toggle"></button>
-    <h1>Daily FASR / RTO / NDR Dashboard</h1>
+    <h1>Delivery Ops Dashboard</h1>
 
     <div class="top-tabs">
       <a href="{{ url_for('dashboard', subtab='overall', **qs) }}" class="{% if top_tab=='dashboard' %}active{% endif %}">Dashboard</a>

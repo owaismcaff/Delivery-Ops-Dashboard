@@ -1,4 +1,4 @@
-# Daily FASR / RTO / NDR Dashboard
+# Delivery Ops Dashboard
 
 A local business dashboard: upload each day's raw CSV export and it merges
 into a running history. Shows KPI cards with period-over-period deltas, a

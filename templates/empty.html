@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html><head><title>Daily FASR / RTO / NDR Dashboard</title>
+<html><head><title>Delivery Ops Dashboard</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head>
 <body>
 <div class="main" style="max-width:600px;margin:3rem auto;text-align:center;">
-  <h1>Daily FASR / RTO / NDR Dashboard</h1>
+  <h1>Delivery Ops Dashboard</h1>
   {% if session.get('is_admin') %}
   <p>No data yet - upload a raw CSV export to get started{% if backup_timestamp %}, or restore from your last backup{% endif %}.</p>
   <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
