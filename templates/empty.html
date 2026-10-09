@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html><head><title>Daily FASR / RTO / NDR Dashboard</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head>
+<body>
+<div class="main" style="max-width:600px;margin:3rem auto;text-align:center;">
+  <h1>Daily FASR / RTO / NDR Dashboard</h1>
+  {% if session.get('is_admin') %}
+  <p>No data yet - upload a raw CSV export to get started{% if backup_timestamp %}, or restore from your last backup{% endif %}.</p>
+  <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
+    <input type="file" name="files" accept=".csv" multiple>
+    <button type="submit" class="btn">Upload</button>
+  </form>
+  {% if backup_timestamp %}
+  <p style="font-size:11px;color:#94a3b8;margin:1rem 0 0.35rem 0;">Last backup: {{ backup_timestamp }}</p>
+  <form action="{{ url_for('restore_backup_route') }}" method="post" onsubmit="return confirm('Restore store from the last backup?');">
+    <button type="submit" class="btn secondary">Restore from backup</button>
+  </form>
+  {% endif %}
+  {% else %}
+  <p>No data yet. Uploading or restoring data requires admin login.</p>
+  <a href="{{ url_for('admin_login', next=request.path) }}" class="btn secondary" style="display:inline-block;text-decoration:none;">Admin login</a>
+  {% endif %}
+</div>
+</body></html>

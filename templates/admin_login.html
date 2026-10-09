@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html><head><title>Admin Login - Daily FASR / RTO / NDR Dashboard</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head>
+<body>
+<div class="main" style="max-width:360px;margin:4rem auto;text-align:center;">
+  <h1 style="font-size:20px;">Admin Login</h1>
+  <p style="font-size:12.5px;color:#64748b;">Required for uploading, backing up, restoring, or resetting data.</p>
+  {% if error %}<div class="flash" style="color:#b91c1c;">{{ error }}</div>{% endif %}
+  <form method="post" style="margin-top:1rem;">
+    <input type="hidden" name="next" value="{{ next_url }}">
+    <input type="password" name="password" placeholder="Admin password" autofocus
+           style="width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:6px;padding:8px 10px;font-size:13px;margin-bottom:0.6rem;">
+    <button type="submit" class="btn" style="width:100%;">Log in</button>
+  </form>
+  <p style="margin-top:1rem;"><a href="{{ url_for('dashboard', subtab='overall') }}">&larr; Back to dashboard</a></p>
+</div>
+</body></html>

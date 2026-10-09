@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="kpi-row">
+  <div class="kpi-card"><div class="label">Orders</div><div class="value">{{ kpi.orders }}</div></div>
+  <div class="kpi-card"><div class="label">FASR %</div><div class="value">{{ kpi.fasr }}</div><div class="delta {{ kpi.fasr_delta_class }}">{{ kpi.fasr_delta }}</div></div>
+  <div class="kpi-card"><div class="label">RTO % (1st Att)</div><div class="value">{{ kpi.rto1 }}</div><div class="delta {{ kpi.rto1_delta_class }}">{{ kpi.rto1_delta }}</div></div>
+  <div class="kpi-card"><div class="label">RTO % (Overall)</div><div class="value">{{ kpi.rto_overall }}</div><div class="delta {{ kpi.rto_overall_delta_class }}">{{ kpi.rto_overall_delta }}</div></div>
+  <div class="kpi-card"><div class="label">NDR %</div><div class="value">{{ kpi.ndr }}</div><div class="delta {{ kpi.ndr_delta_class }}">{{ kpi.ndr_delta }}</div></div>
+</div>
+<div class="section-caption">vs. previous {{ kpi.period_days }}-day period ({{ kpi.prev_start }} to {{ kpi.prev_end }})</div>
+
+<div class="chart-block">{{ trend_chart_html|safe }}</div>
+<div class="chart-block">{{ volume_chart_html|safe }}</div>
+
+<hr style="border:none;border-top:1px solid #e2e8f0;margin:1.2rem 0;">
+
+<div class="sub-tabs">
+  <a href="{{ url_for('dashboard', subtab='overall', **qs) }}" class="{% if subtab=='overall' %}active{% endif %}">Overall</a>
+  <a href="{{ url_for('dashboard', subtab='cut-1d', **qs) }}" class="{% if subtab=='cut-1d' %}active{% endif %}">1D Cut</a>
+  <a href="{{ url_for('dashboard', subtab='cut-2d', **qs) }}" class="{% if subtab=='cut-2d' %}active{% endif %}">2D Cut</a>
+</div>
+
+{% if subtab == 'cut-1d' %}
+<form method="get" class="cut1d-form">
+  <input type="hidden" name="view" value="{{ view }}">
+  <input type="hidden" name="start" value="{{ range_start }}">
+  <input type="hidden" name="end" value="{{ range_end }}">
+  {% for c in selected_brands %}<input type="hidden" name="brand" value="{{ c }}">{% endfor %}
+  {% for c in selected_channels %}<input type="hidden" name="channel" value="{{ c }}">{% endfor %}
+  {% for c in selected_payment_modes %}<input type="hidden" name="payment" value="{{ c }}">{% endfor %}
+  {% for c in selected_states %}<input type="hidden" name="state" value="{{ c }}">{% endfor %}
+  {% for c in selected_statuses %}<input type="hidden" name="status" value="{{ c }}">{% endfor %}
+  {% for c in selected_couriers %}<input type="hidden" name="courier" value="{{ c }}">{% endfor %}
+
+  <div class="cut-builder-row">
+    <div class="filter-field">
+      <label>Dimension</label>
+      <select name="dim">
+        <option value="">Select a dimension...</option>
+        {% for key, dim in dimensions.items() %}
+        <option value="{{ key }}" {% if key==selected_dim %}selected{% endif %}>{{ dim.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label>Min orders (0 = show every value)</label>
+      <input type="number" name="min_orders" value="{{ min_orders }}" min="0">
+    </div>
+    <div class="filter-field">
+      <label>Row order</label>
+      <select name="sort">
+        {% for opt in (sort_options or ['Default']) %}<option value="{{ opt }}" {% if opt==sort_by %}selected{% endif %}>{{ opt }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="cut-builder-row">
+    <div class="filter-field"><label>Cut start date</label><input type="date" name="cut_start" value="{{ cut_start }}" min="{{ data_min }}" max="{{ data_max }}"></div>
+    <div class="filter-field"><label>Cut end date</label><input type="date" name="cut_end" value="{{ cut_end }}" min="{{ data_min }}" max="{{ data_max }}"></div>
+  </div>
+  <div class="section-caption" style="margin-top:-0.5rem;">Independent of the sidebar's date filter - only affects this cut.</div>
+
+  <div class="filter-field">
+    <label>Search (e.g. specific Pincode/City values, comma-separated)</label>
+    <input type="text" name="dim_search" value="{{ dim_search }}" placeholder="e.g. 110001, 400001">
+  </div>
+  <div class="section-caption" style="margin-top:-0.5rem;">Looks up exactly these values, ignoring Min orders and the City/Pincode top-300 cap. Leave blank for the normal ranked view.</div>
+
+  <div class="filter-field">
+    <label>Metrics</label>
+    <div class="checkbox-list-actions"><span onclick="setAll(this,true)">All</span><span onclick="setAll(this,false)">None</span></div>
+    <div class="checkbox-list cut1d-metrics">
+      {% for m in all_metric_labels %}
+      <label class="checkbox-row"><input type="checkbox" name="metric" value="{{ m }}" {% if m in selected_metrics %}checked{% endif %}> {{ m }}</label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <button type="submit" class="btn">Generate</button>
+</form>
+
+{% if cut1d_generated %}
+{% if row_cap_note %}<div class="section-caption row-cap-note">{{ row_cap_note }}</div>{% endif %}
+{{ table_html|safe }}
+<form method="get" action="{{ url_for('download', kind='cut-1d') }}" class="download-form">
+  <input type="hidden" name="view" value="{{ view }}">
+  <input type="hidden" name="start" value="{{ range_start }}">
+  <input type="hidden" name="end" value="{{ range_end }}">
+  {% for c in selected_brands %}<input type="hidden" name="brand" value="{{ c }}">{% endfor %}
+  {% for c in selected_channels %}<input type="hidden" name="channel" value="{{ c }}">{% endfor %}
+  {% for c in selected_payment_modes %}<input type="hidden" name="payment" value="{{ c }}">{% endfor %}
+  {% for c in selected_states %}<input type="hidden" name="state" value="{{ c }}">{% endfor %}
+  {% for c in selected_statuses %}<input type="hidden" name="status" value="{{ c }}">{% endfor %}
+  {% for c in selected_couriers %}<input type="hidden" name="courier" value="{{ c }}">{% endfor %}
+  <input type="hidden" name="dim" value="{{ selected_dim }}">
+  {% for m in selected_metrics %}<input type="hidden" name="metric" value="{{ m }}">{% endfor %}
+  <input type="hidden" name="sort" value="{{ sort_by }}">
+  <input type="hidden" name="min_orders" value="{{ min_orders }}">
+  <input type="hidden" name="cut_start" value="{{ cut_start }}">
+  <input type="hidden" name="cut_end" value="{{ cut_end }}">
+  <input type="hidden" name="dim_search" value="{{ dim_search }}">
+  <button type="submit" class="btn secondary">Download CSV</button>
+</form>
+{% else %}
+<div class="section-caption">Select a dimension and at least one metric, then click Generate.</div>
+{% endif %}
+
+{% elif subtab == 'cut-2d' %}
+<form method="get" class="cut1d-form">
+  <input type="hidden" name="view" value="{{ view }}">
+  <input type="hidden" name="start" value="{{ range_start }}">
+  <input type="hidden" name="end" value="{{ range_end }}">
+  {% for c in selected_brands %}<input type="hidden" name="brand" value="{{ c }}">{% endfor %}
+  {% for c in selected_channels %}<input type="hidden" name="channel" value="{{ c }}">{% endfor %}
+  {% for c in selected_payment_modes %}<input type="hidden" name="payment" value="{{ c }}">{% endfor %}
+  {% for c in selected_states %}<input type="hidden" name="state" value="{{ c }}">{% endfor %}
+  {% for c in selected_statuses %}<input type="hidden" name="status" value="{{ c }}">{% endfor %}
+  {% for c in selected_couriers %}<input type="hidden" name="courier" value="{{ c }}">{% endfor %}
+
+  <div class="cut-builder-row">
+    <div class="filter-field">
+      <label>Dimension 1</label>
+      <select name="dim1">
+        <option value="">Select a dimension...</option>
+        {% for key, dim in dimensions.items() %}
+        <option value="{{ key }}" {% if key==selected_dim1 %}selected{% endif %}>{{ dim.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label>Dimension 2</label>
+      <select name="dim2">
+        <option value="">Select a dimension...</option>
+        {% for key, dim in dimensions.items() %}
+        <option value="{{ key }}" {% if key==selected_dim2 %}selected{% endif %}>{{ dim.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="section-caption" style="margin-top:-0.5rem;">Whichever has more distinct values becomes the outer row group automatically - order doesn't matter.</div>
+
+  <div class="cut-builder-row">
+    <div class="filter-field">
+      <label>Min orders (0 = show every value)</label>
+      <input type="number" name="min_orders" value="{{ min_orders }}" min="0">
+    </div>
+    <div class="filter-field">
+      <label>Row order</label>
+      <select name="sort">
+        {% for opt in (sort_options or ['Default']) %}<option value="{{ opt }}" {% if opt==sort_by %}selected{% endif %}>{{ opt }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="cut-builder-row">
+    <div class="filter-field"><label>Cut start date</label><input type="date" name="cut_start" value="{{ cut_start }}" min="{{ data_min }}" max="{{ data_max }}"></div>
+    <div class="filter-field"><label>Cut end date</label><input type="date" name="cut_end" value="{{ cut_end }}" min="{{ data_min }}" max="{{ data_max }}"></div>
+  </div>
+  <div class="section-caption" style="margin-top:-0.5rem;">Independent of the sidebar's date filter - only affects this cut.</div>
+
+  <div class="filter-field">
+    <label>Search (e.g. specific Pincode/City values, comma-separated)</label>
+    <input type="text" name="dim_search" value="{{ dim_search }}" placeholder="e.g. 110001, 400001">
+  </div>
+  <div class="section-caption" style="margin-top:-0.5rem;">Looks up exactly these values, ignoring Min orders and the City/Pincode top-300 cap. Leave blank for the normal ranked view.</div>
+
+  <div class="filter-field">
+    <label>Metrics</label>
+    <div class="checkbox-list-actions"><span onclick="setAll(this,true)">All</span><span onclick="setAll(this,false)">None</span></div>
+    <div class="checkbox-list cut1d-metrics">
+      {% for m in all_metric_labels %}
+      <label class="checkbox-row"><input type="checkbox" name="metric2" value="{{ m }}" {% if m in selected_metrics_2d %}checked{% endif %}> {{ m }}</label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <button type="submit" class="btn">Generate</button>
+</form>
+
+{% if cut2d_error %}
+<div class="flash">{{ cut2d_error }}</div>
+{% elif cut2d_generated %}
+{% if row_cap_note %}<div class="section-caption row-cap-note">{{ row_cap_note }}</div>{% endif %}
+{{ table_html|safe }}
+<form method="get" action="{{ url_for('download', kind='cut-2d') }}" class="download-form">
+  <input type="hidden" name="view" value="{{ view }}">
+  <input type="hidden" name="start" value="{{ range_start }}">
+  <input type="hidden" name="end" value="{{ range_end }}">
+  {% for c in selected_brands %}<input type="hidden" name="brand" value="{{ c }}">{% endfor %}
+  {% for c in selected_channels %}<input type="hidden" name="channel" value="{{ c }}">{% endfor %}
+  {% for c in selected_payment_modes %}<input type="hidden" name="payment" value="{{ c }}">{% endfor %}
+  {% for c in selected_states %}<input type="hidden" name="state" value="{{ c }}">{% endfor %}
+  {% for c in selected_statuses %}<input type="hidden" name="status" value="{{ c }}">{% endfor %}
+  {% for c in selected_couriers %}<input type="hidden" name="courier" value="{{ c }}">{% endfor %}
+  <input type="hidden" name="dim1" value="{{ selected_dim1 }}">
+  <input type="hidden" name="dim2" value="{{ selected_dim2 }}">
+  {% for m in selected_metrics_2d %}<input type="hidden" name="metric2" value="{{ m }}">{% endfor %}
+  <input type="hidden" name="sort" value="{{ sort_by }}">
+  <input type="hidden" name="min_orders" value="{{ min_orders }}">
+  <input type="hidden" name="cut_start" value="{{ cut_start }}">
+  <input type="hidden" name="cut_end" value="{{ cut_end }}">
+  <input type="hidden" name="dim_search" value="{{ dim_search }}">
+  <button type="submit" class="btn secondary">Download CSV</button>
+</form>
+{% else %}
+<div class="section-caption">Select two dimensions and at least one metric, then click Generate.</div>
+{% endif %}
+
+{% else %}
+
+{{ table_html|safe }}
+
+<form method="get" action="{{ url_for('download', kind=subtab) }}" class="download-form">
+  <input type="hidden" name="view" value="{{ view }}">
+  <input type="hidden" name="start" value="{{ range_start }}">
+  <input type="hidden" name="end" value="{{ range_end }}">
+  {% for c in selected_brands %}<input type="hidden" name="brand" value="{{ c }}">{% endfor %}
+  {% for c in selected_channels %}<input type="hidden" name="channel" value="{{ c }}">{% endfor %}
+  {% for c in selected_payment_modes %}<input type="hidden" name="payment" value="{{ c }}">{% endfor %}
+  {% for c in selected_states %}<input type="hidden" name="state" value="{{ c }}">{% endfor %}
+  {% for c in selected_statuses %}<input type="hidden" name="status" value="{{ c }}">{% endfor %}
+  {% for c in selected_couriers %}<input type="hidden" name="courier" value="{{ c }}">{% endfor %}
+  <button type="submit" class="btn secondary">Download CSV</button>
+</form>
+
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Daily FASR / RTO / NDR Dashboard</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+{{ table_css|safe }}
+</head>
+<body>
+<div class="layout">
+
+  <div class="sidebar" id="sidebar">
+    {% if session.get('is_admin') %}
+    <h2>Upload daily data</h2>
+    <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
+      <input type="file" name="files" accept=".csv" multiple>
+      <button type="submit" class="btn">Upload</button>
+    </form>
+    <p style="font-size:11px;color:#94a3b8;">5GB per file - CSV</p>
+
+    {% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
+
+    <details>
+      <summary>Upload history</summary>
+      {% if upload_log_html %}{{ upload_log_html|safe }}{% else %}<p style="font-size:12px;color:#94a3b8;">No uploads yet.</p>{% endif %}
+    </details>
+
+    <hr>
+    <form action="{{ url_for('backup') }}" method="post">
+      <button type="submit" class="btn secondary">Create backup</button>
+    </form>
+    <p style="font-size:11px;color:#94a3b8;margin:0.35rem 0 0 0;">
+      {% if backup_timestamp %}Last backup: {{ backup_timestamp }}{% else %}No backup yet{% endif %}
+    </p>
+    <form action="{{ url_for('restore_backup_route') }}" method="post" onsubmit="return confirm('Restore store from the last backup? This replaces all current data.');" style="margin-top:0.4rem;">
+      <button type="submit" class="btn secondary" {% if not backup_timestamp %}disabled{% endif %}>Restore from backup</button>
+    </form>
+
+    <hr>
+    <form action="{{ url_for('reset') }}" method="post" onsubmit="return confirm('Clear all stored data? Create a backup first if you want to undo this.');">
+      <button type="submit" class="btn secondary">Reset all stored data</button>
+    </form>
+
+    <p style="font-size:11px;margin-top:0.5rem;"><a href="{{ url_for('admin_logout') }}">Log out of admin</a></p>
+    {% else %}
+    <h2>Data management</h2>
+    <p style="font-size:12.5px;color:#64748b;">Upload, backup, restore, and reset require admin login.</p>
+    <a href="{{ url_for('admin_login', next=request.path) }}" class="btn secondary" style="display:inline-block;text-decoration:none;text-align:center;">Admin login</a>
+    {% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
+    {% endif %}
+
+    <hr>
+    <h3>Filters</h3>
+    <form method="get" action="">
+     <!-- Carries the current 1D/2D Cut selection (if any) forward across a
+          sidebar filter change, mirroring qs (see webapp.py's _cut_extra_qs)
+          - without these, applying any sidebar filter reset the whole cut,
+          forcing it to be re-entered from scratch. -->
+     <input type="hidden" name="dim" value="{{ qs.dim }}">
+     {% for m in qs.metric %}<input type="hidden" name="metric" value="{{ m }}">{% endfor %}
+     <input type="hidden" name="dim1" value="{{ qs.dim1 }}">
+     <input type="hidden" name="dim2" value="{{ qs.dim2 }}">
+     {% for m in qs.metric2 %}<input type="hidden" name="metric2" value="{{ m }}">{% endfor %}
+     <input type="hidden" name="min_orders" value="{{ qs.min_orders }}">
+     <input type="hidden" name="sort" value="{{ qs.sort }}">
+     <input type="hidden" name="cut_start" value="{{ qs.cut_start }}">
+     <input type="hidden" name="cut_end" value="{{ qs.cut_end }}">
+     <input type="hidden" name="dim_search" value="{{ qs.dim_search }}">
+     <div class="filters-scroll">
+      <div class="filter-field">
+        <label>Table view</label>
+        <div class="radio-row">
+          <label><input type="radio" name="view" value="day" {% if view=='day' %}checked{% endif %}> Daily</label>
+          <label><input type="radio" name="view" value="week" {% if view=='week' %}checked{% endif %}> Weekly</label>
+          <label><input type="radio" name="view" value="month" {% if view=='month' %}checked{% endif %}> Monthly</label>
+        </div>
+      </div>
+      <div class="filter-field date-row">
+        <div class="filter-field"><label>Start</label><input type="date" name="start" value="{{ range_start }}" min="{{ data_min }}" max="{{ data_max }}"></div>
+        <div class="filter-field"><label>End</label><input type="date" name="end" value="{{ range_end }}" min="{{ data_min }}" max="{{ data_max }}"></div>
+      </div>
+      <div class="filter-field accordion{% if selected_brands|length < all_brands|length %} open{% endif %}">
+        <button type="button" class="accordion-header" onclick="toggleAccordion(this)"><span>Brand</span><span class="accordion-chevron">&#9662;</span></button>
+        <div class="accordion-body">
+          <div class="checkbox-list-actions"><span onclick="setAll(this,true)">All</span><span onclick="setAll(this,false)">None</span></div>
+          <div class="checkbox-list">
+            {% for c in all_brands %}<label class="checkbox-row"><input type="checkbox" name="brand" value="{{ c }}" {% if c in selected_brands %}checked{% endif %}> {{ c }}</label>{% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="filter-field accordion{% if selected_channels|length < all_channels|length %} open{% endif %}">
+        <button type="button" class="accordion-header" onclick="toggleAccordion(this)"><span>Channel</span><span class="accordion-chevron">&#9662;</span></button>
+        <div class="accordion-body">
+          <div class="checkbox-list-actions"><span onclick="setAll(this,true)">All</span><span onclick="setAll(this,false)">None</span></div>
+          <input type="text" class="filter-search" placeholder="Search channels..." oninput="filterCheckboxList(this)">
+          <div class="checkbox-list">
+            {% for c in all_channels %}<label class="checkbox-row"><input type="checkbox" name="channel" value="{{ c }}" {% if c in selected_channels %}checked{% endif %}> {{ c }}</label>{% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="filter-field accordion{% if selected_payment_modes|length < all_payment_modes|length %} open{% endif %}">
+        <button type="button" class="accordion-header" onclick="toggleAccordion(this)"><span>Payment mode</span><span class="accordion-chevron">&#9662;</span></button>
+        <div class="accordion-body">
+          <div class="checkbox-list-actions"><span onclick="setAll(this,true)">All</span><span onclick="setAll(this,false)">None</span></div>
+          <div class="checkbox-list">
+            {% for c in all_payment_modes %}<label class="checkbox-row"><input type="checkbox" name="payment" value="{{ c }}" {% if c in selected_payment_modes %}checked{% endif %}> {{ c }}</label>{% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="filter-field accordion{% if selected_states|length < all_states|length %} open{% endif %}">
+        <button type="button" class="accordion-header" onclick="toggleAccordion(this)"><span>State</span><span class="accordion-chevron">&#9662;</span></button>
+        <div class="accordion-body">
+          <div class="checkbox-list-actions"><span onclick="setAll(this,true)">All</span><span onclick="setAll(this,false)">None</span></div>
+          <input type="text" class="filter-search" placeholder="Search states..." oninput="filterCheckboxList(this)">
+          <div class="checkbox-list">
+            {% for c in all_states %}<label class="checkbox-row"><input type="checkbox" name="state" value="{{ c }}" {% if c in selected_states %}checked{% endif %}> {{ c }}</label>{% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="filter-field accordion{% if selected_statuses|length < all_statuses|length %} open{% endif %}">
+        <button type="button" class="accordion-header" onclick="toggleAccordion(this)"><span>Status</span><span class="accordion-chevron">&#9662;</span></button>
+        <div class="accordion-body">
+          <div class="checkbox-list-actions"><span onclick="setAll(this,true)">All</span><span onclick="setAll(this,false)">None</span></div>
+          <input type="text" class="filter-search" placeholder="Search statuses..." oninput="filterCheckboxList(this)">
+          <div class="checkbox-list">
+            {% for c in all_statuses %}<label class="checkbox-row"><input type="checkbox" name="status" value="{{ c }}" {% if c in selected_statuses %}checked{% endif %}> {{ c }}</label>{% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="filter-field accordion{% if selected_couriers|length < all_couriers|length %} open{% endif %}">
+        <button type="button" class="accordion-header" onclick="toggleAccordion(this)"><span>Courier</span><span class="accordion-chevron">&#9662;</span></button>
+        <div class="accordion-body">
+          <div class="checkbox-list-actions"><span onclick="setAll(this,true)">All</span><span onclick="setAll(this,false)">None</span></div>
+          <input type="text" class="filter-search" placeholder="Search couriers..." oninput="filterCheckboxList(this)">
+          <div class="checkbox-list">
+            {% for c in all_couriers %}<label class="checkbox-row"><input type="checkbox" name="courier" value="{{ c }}" {% if c in selected_couriers %}checked{% endif %}> {{ c }}</label>{% endfor %}
+          </div>
+        </div>
+      </div>
+     </div>
+      <div class="apply-filters-bar"><button type="submit" class="btn">Apply filters</button></div>
+    </form>
+  </div>
+
+  <div class="main">
+    <button type="button" id="sidebarToggle" class="sidebar-toggle"></button>
+    <h1>Daily FASR / RTO / NDR Dashboard</h1>
+
+    <div class="top-tabs">
+      <a href="{{ url_for('dashboard', subtab='overall', **qs) }}" class="{% if top_tab=='dashboard' %}active{% endif %}">Dashboard</a>
+      <a href="{{ url_for('attempt_analysis', subtab='overall', **qs) }}" class="{% if top_tab=='attempt' %}active{% endif %}">Attempt Analysis</a>
+    </div>
+
+    {% block content %}{% endblock %}
+  </div>
+
+</div>
+<script>
+function setAll(link, checked) {
+    var list = link.closest('.filter-field').querySelector('.checkbox-list');
+    list.querySelectorAll('input[type=checkbox]').forEach(function(cb) { cb.checked = checked; });
+}
+
+function filterCheckboxList(input) {
+    var query = input.value.toLowerCase();
+    var list = input.closest('.filter-field').querySelector('.checkbox-list');
+    list.querySelectorAll('.checkbox-row').forEach(function(row) {
+        row.style.display = row.textContent.toLowerCase().indexOf(query) !== -1 ? '' : 'none';
+    });
+}
+
+// Collapsible filter groups (Brand/Channel/Payment/State/Status/Courier) -
+// each starts open/closed based on whether it has an active (non-"all")
+// selection, rendered server-side via the "open" class (see base.html);
+// this just toggles it on click. CSS handles the smooth expand/collapse
+// animation via a max-height transition (see style.css's .accordion-body).
+function toggleAccordion(btn) {
+    btn.closest('.accordion').classList.toggle('open');
+}
+
+// Wide tables mostly don't need vertical scrolling (few rows), so a plain
+// mouse wheel over them does nothing by default - no vertical overflow to
+// scroll, and nothing translates that motion into horizontal panning. Pan
+// horizontally on wheel instead, but only when the table doesn't currently
+// need vertical scroll (taller grouped tables keep normal vertical wheel).
+document.querySelectorAll('.dash-table-wrap').forEach(function(wrap) {
+    wrap.addEventListener('wheel', function(e) {
+        var needsVerticalScroll = wrap.scrollHeight > wrap.clientHeight;
+        if (!needsVerticalScroll && e.deltaY !== 0) {
+            wrap.scrollLeft += e.deltaY;
+            e.preventDefault();
+        }
+    }, { passive: false });
+});
+
+// Collapsible left panel (filters + upload) - state remembered per-browser
+// via localStorage so it stays collapsed across page loads/navigation.
+(function() {
+    var layoutEl = document.querySelector('.layout');
+    var toggleBtn = document.getElementById('sidebarToggle');
+
+    // responsive:True (see webapp.py) covers most cases via ResizeObserver,
+    // but this explicit nudge is the reliable belt-and-suspenders fix -
+    // collapsing/showing the panel is a flex layout change, not a window
+    // resize, and some browsers' ResizeObserver timing can lag a beat
+    // behind a display:none toggle. requestAnimationFrame waits for the
+    // layout to actually reflow before Plotly re-measures its container.
+    function resizeCharts() {
+        if (!window.Plotly) return;
+        document.querySelectorAll('.js-plotly-plot').forEach(function(gd) {
+            try { Plotly.Plots.resize(gd); } catch (e) {}
+        });
+    }
+
+    function apply(collapsed) {
+        layoutEl.classList.toggle('sidebar-collapsed', collapsed);
+        toggleBtn.textContent = collapsed ? '☰ Show panel' : '☰ Hide panel';
+        requestAnimationFrame(resizeCharts);
+    }
+
+    var stored = null;
+    try { stored = localStorage.getItem('fasrSidebarCollapsed'); } catch (e) {}
+    apply(stored === '1');
+
+    toggleBtn.addEventListener('click', function() {
+        var collapsed = !layoutEl.classList.contains('sidebar-collapsed');
+        apply(collapsed);
+        try { localStorage.setItem('fasrSidebarCollapsed', collapsed ? '1' : '0'); } catch (e) {}
+    });
+})();
+</script>
+</body>
+</html>

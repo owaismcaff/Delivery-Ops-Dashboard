@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.env
+
+# Local data store - this is USER DATA (uploaded orders, cube caches,
+# backups), not code. On Render it lives on the persistent disk
+# (FASR_DATA_DIR=/var/data) instead; locally it's your own data/ folder.
+# Never commit it - it's 250MB+ and grows with every upload.
+data/

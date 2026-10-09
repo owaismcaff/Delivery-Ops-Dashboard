@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: fasr-dashboard
+    env: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn webapp:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 300
+    disk:
+      name: fasr-data
+      mountPath: /var/data
+      sizeGB: 2
+    envVars:
+      - key: FASR_DATA_DIR
+        value: /var/data
+      - key: FASR_ADMIN_PASSWORD
+        sync: false
+      - key: FASR_SECRET_KEY
+        generateValue: true
